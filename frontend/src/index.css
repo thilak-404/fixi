@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  background-color: #0a0f1d;
+  color: #f1f5f9;
+}
+
+.hud-shell {
+  background-image: linear-gradient(rgba(0, 229, 255, 0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.014) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.hud-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent 50%, rgba(0, 229, 255, 0.018) 51%, transparent 52%);
+  background-size: 100% 8px;
+  opacity: 0.35;
+  z-index: 60;
+}
+
+.hud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font: 700 0.65rem/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.08em;
+}
+
+.hud-badge-green { color: #6ee7b7; background: rgba(16, 185, 129, 0.08); }
+.hud-badge-amber { color: #fbbf24; background: rgba(245, 158, 11, 0.08); }
+.hud-dot { width: 0.4rem; height: 0.4rem; border-radius: 999px; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.hud-icon-button, .hud-stop-button { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid rgba(148, 163, 184, 0.4); border-radius: 0.25rem; padding: 0.4rem 0.55rem; font: 700 0.65rem/1 'JetBrains Mono', monospace; transition: 150ms ease; }
+.hud-icon-button { color: #bae6fd; background: rgba(14, 116, 144, 0.16); }
+.hud-icon-button:hover { border-color: #67e8f9; color: #67e8f9; }
+.hud-stop-button { color: #fecaca; background: rgba(185, 28, 28, 0.25); border-color: rgba(248, 113, 113, 0.8); }
+.hud-stop-button:hover { background: rgba(220, 38, 38, 0.65); color: white; }
+.hud-status-line { display: flex; align-items: center; gap: 0.75rem; min-height: 2rem; padding: 0.35rem 1.5rem; border-bottom: 1px solid rgba(31, 41, 55, 0.9); background: rgba(7, 11, 20, 0.88); font: 600 0.72rem/1.2 'JetBrains Mono', monospace; }
+.hud-key-hint { margin-left: auto; color: #64748b; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIXI — Local Person-Aware Companion</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header>
+    <div class="logo-area">
+      <div class="logo-badge">FIXI</div>
+      <div class="logo-title">
+        <h1>Local AI Robotic Companion</h1>
+        <p>100% On-Device • Person-Aware • Privacy-Preserving</p>
+      </div>
+    </div>
+
+    <!-- HUD Status Indicators (Section 16) -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-dot" id="hud-cam-dot"></span>
+        <span>Camera: <strong>Active</strong></span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot"></span>
+        <span>Mic: <strong>Active</strong></span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot"></span>
+        <span>LLM: <strong id="hud-llm-val">{{ status.llm_model }} ({{ status.llm_status }})</strong></span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot"></span>
+        <span>Memory: <strong>Local SQLite</strong></span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot" style="background: #00f2fe; box-shadow: 0 0 8px #00f2fe;"></span>
+        <span>Internet: <strong>None (Local Only)</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Layout -->
+  <main class="dashboard-grid">
+    <!-- Left Column: Vision & Actuators -->
+    <section class="left-col">
+      <!-- Camera Feed Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            Live Vision Feed
+          </div>
+          <span class="badge badge-green">Real-Time</span>
+        </div>
+
+        <div class="video-container">
+          <img src="/api/camera/stream" alt="Live Camera Stream" id="camera-stream-img">
+          <div class="hud-overlay">
+            <div class="hud-badge">HUD: PERSON DETECTOR ACTIVE</div>
+            <div class="hud-badge">FPS: 30</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Person Recognition Card (Section 16) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            Current Person
+          </div>
+        </div>
+
+        <div class="person-box">
+          <div class="person-avatar" id="current-person-avatar">?</div>
+          <div class="person-info">
+            <h3 id="current-person-name">{{ status.current_person }}</h3>
+            <div class="person-meta">
+              <span>ID: <strong id="current-person-id">{{ status.current_user_id }}</strong></span>
+              <span>Recognition: <strong id="current-person-conf">{{ status.recognition_confidence }}%</strong></span>
+              <span>Last seen: <strong id="current-person-seen">{{ status.last_interaction }}s ago</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; display: flex; gap: 10px;">
+          <button class="btn-primary" id="btn-register-face" style="flex: 1; padding: 10px 14px; font-size: 0.85rem;">
+            📸 Register My Face
+          </button>
+          <button class="btn-robot" id="btn-say-hello" style="padding: 10px 14px; font-size: 0.85rem;" title="Test Voice Output">
+            🔊 Test Voice
+          </button>
+        </div>
+      </div>
+
+      <!-- Robotics Remote Actuators (Section 20) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Robotics Controller
+          </div>
+          <span class="badge badge-blue">Hardware Abstraction</span>
+        </div>
+
+        <div class="robot-grid">
+          <div></div>
+          <button class="btn-robot" data-action="forward">▲</button>
+          <div></div>
+          <button class="btn-robot" data-action="left">◀</button>
+          <button class="btn-robot stop" data-action="stop">■</button>
+          <button class="btn-robot" data-action="right">▶</button>
+          <div></div>
+          <button class="btn-robot" data-action="backward">▼</button>
+          <div></div>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 12px;">
+          <button class="btn-robot" data-action="wave" style="padding: 8px 24px; width: 100%;">👋 Wave Gesture</button>
+        </div>
+
+        <div class="robot-telemetry">
+          <div>Odometry: <span id="telem-pos">(0.0, 0.0)</span></div>
+          <div>Heading: <span id="telem-heading">0°</span></div>
+          <div>Head Pan: <span id="telem-pan">0°</span></div>
+          <div>Head Tilt: <span id="telem-tilt">0°</span></div>
+        </div>
+      </div>
+
+      <!-- Real-Time WebSocket Event Stream Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1"/></svg>
+            Live WebSocket Events
+          </div>
+          <span class="badge badge-green" id="ws-badge">Connected</span>
+        </div>
+        <div class="event-timeline" id="event-timeline-box">
+          <div class="event-entry cv">
+            <span class="event-time">Init</span>
+            <span class="event-badge">SYSTEM</span>
+            <span class="event-desc">Real-time WebSocket event bus connected.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Interactive Tabs -->
+    <section class="right-col">
+      <div class="card" style="min-height: 720px;">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="tab-chat">💬 Live Companion</button>
+          <button class="tab-btn" data-tab="tab-cv">👁️ CV Lab</button>
+          <button class="tab-btn" data-tab="tab-robotics">🦾 Robotics Lab</button>
+          <button class="tab-btn" data-tab="tab-memory">🧠 Memory Vault</button>
+          <button class="tab-btn" data-tab="tab-users">👥 Profiles</button>
+          <button class="tab-btn" data-tab="tab-benchmarks">📊 Academic Benchmarks</button>
+          <button class="tab-btn" data-tab="tab-system">⚙️ Diagnostics</button>
+        </div>
+
+        <!-- TAB 1: Interactive Conversation Simulator -->
+        <div class="tab-content active" id="tab-chat">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+              Speak or chat with Fixi. Fixi uses local Whisper STT, Qwen2.5 LLM, and Piper TTS.
+            </p>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Simulate as:</span>
+              <select id="chat-as-user" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem;">
+                <option value="">-- Active Recognized User --</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="chat-window" id="chat-window">
+            <div class="chat-bubble fixi">
+              Hello! I am Fixi, your personal local robotic companion. I'm ready to learn and assist you!
+            </div>
+          </div>
+
+          <!-- Two-Way Voice Controls Bar -->
+          <div class="voice-bar">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <button class="btn-mic" id="btn-voice-mic" title="Click to speak with Fixi">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                <span id="mic-btn-label">Talk to Fixi</span>
+              </button>
+              <button class="btn-voice-toggle" id="btn-handsfree-toggle" title="Toggle hands-free listening">
+                <span>🔴</span> Hands-Free Mode
+              </button>
+              <button class="btn-voice-toggle" id="btn-audio-target-toggle" title="Choose whether voice plays through browser audio or robot hardware speaker">
+                <span id="audio-target-icon">🌐</span> <span id="audio-target-label">Browser Audio</span>
+              </button>
+            </div>
+
+            <div class="voice-status-text" id="voice-status-container">
+              <span id="voice-status-text">Click Talk to speak</span>
+              <div class="equalizer" id="audio-equalizer">
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Type or click 'Talk to Fixi' to speak aloud..." autocomplete="off">
+            <button class="btn-primary" id="chat-send-btn">Send</button>
+          </div>
+        </div>
+
+        <!-- TAB: Computer Vision Lab -->
+        <div class="tab-content" id="tab-cv">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div>
+              <h3 style="color: var(--accent-cyan); font-size: 1.05rem; margin-bottom: 4px;">👁️ Computer Vision & Spatial Perception Lab</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">
+                Local YOLOv8n object detection, ByteTrack multi-person tracking, and ground-plane spatial projection to world coordinates.
+              </p>
+            </div>
+          </div>
+
+          <!-- CV Metrics Grid -->
+          <div class="metrics-grid">
+            <div class="metric-card highlight">
+              <div class="metric-label">Model</div>
+              <div class="metric-value" style="font-size: 1rem; color: var(--accent-cyan);">YOLOv8n + ByteTrack</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Inference Latency</div>
+              <div class="metric-value" id="cv-latency-val">0.0 ms</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Throughput</div>
+              <div class="metric-value" id="cv-fps-val">0.0 FPS</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Active People</div>
+              <div class="metric-value" id="cv-count-val">0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Primary Track ID</div>
+              <div class="metric-value" id="cv-track-id-val">#1</div>
+            </div>
+          </div>
+
+          <!-- Spatial Projection Coordinates -->
+          <div style="margin-top: 16px;">
+            <h4 style="color: var(--text-main); font-size: 0.9rem; margin-bottom: 8px;">Spatial Ground Projection & Metric Depth Estimation</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Track ID</th>
+                  <th>Bounding Box (x,y,w,h)</th>
+                  <th>Confidence</th>
+                  <th>Lateral X (m)</th>
+                  <th>Forward Y (m)</th>
+                  <th>Grid Cell (Col, Row)</th>
+                </tr>
+              </thead>
+              <tbody id="cv-detections-table-body">
+                <tr><td colspan="6" class="text-muted" style="text-align: center;">Scanning camera feed...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB: Intelligent Robotics Simulation Lab -->
+        <div class="tab-content" id="tab-robotics">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <h3 style="color: var(--accent-cyan); font-size: 1.05rem; margin-bottom: 4px;">🦾 Intelligent Robotics & 2D A* Navigation Lab</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">
+                2D Occupancy Grid (20x20, 0.25m/cell), 8-connected A* search, obstacle safety inflation, and dynamic replanning.
+              </p>
+            </div>
+          </div>
+
+          <!-- FSM State Machine Visualizer -->
+          <div class="fsm-container">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-right: 8px;">FSM STATE:</div>
+            <div class="fsm-node fsm-active" id="fsm-node-IDLE">IDLE</div>
+            <span class="fsm-arrow">➔</span>
+            <div class="fsm-node" id="fsm-node-PERCEIVING">PERCEIVING</div>
+            <span class="fsm-arrow">➔</span>
+            <div class="fsm-node" id="fsm-node-PLANNING">PLANNING</div>
+            <span class="fsm-arrow">➔</span>
+            <div class="fsm-node" id="fsm-node-NAVIGATING">NAVIGATING</div>
+            <span class="fsm-arrow">➔</span>
+            <div class="fsm-node" id="fsm-node-ARRIVED">ARRIVED</div>
+            <span class="fsm-arrow">|</span>
+            <div class="fsm-node" id="fsm-node-BLOCKED">BLOCKED</div>
+            <span class="fsm-arrow">➔</span>
+            <div class="fsm-node" id="fsm-node-REPLANNING">REPLANNING</div>
+            <span class="fsm-arrow">|</span>
+            <div class="fsm-node" id="fsm-node-EMERGENCY_STOP">SAFETY STOP</div>
+          </div>
+
+          <div class="robotics-layout">
+            <!-- Left: 2D Canvas -->
+            <div class="canvas-container">
+              <canvas id="robotics-canvas" width="460" height="460"></canvas>
+              <div class="canvas-legend">
+                <div class="legend-item"><div class="legend-dot" style="background: #00f2fe;"></div> Robot</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #e11d48;"></div> Person</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #f59e0b;"></div> Target</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #334155;"></div> Static Wall</div>
+                <div class="legend-item"><div class="legend-dot" style="background: #f97316;"></div> Dynamic Obstacle</div>
+                <div class="legend-item"><div class="legend-dot" style="background: rgba(245, 158, 11, 0.25);"></div> Safety Inflation</div>
+              </div>
+              <p style="font-size: 0.72rem; color: var(--text-muted); margin-top: 8px;">
+                💡 <em>Click any grid cell above to place or remove a dynamic obstacle!</em>
+              </p>
+            </div>
+
+            <!-- Right: Controls & Metrics -->
+            <div>
+              <div class="metrics-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Robot Pos (Grid)</div>
+                  <div class="metric-value" id="sim-grid-pos">(10, 2)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Robot World (x, y)</div>
+                  <div class="metric-value" id="sim-world-pos">(2.6m, 0.6m)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Heading Angle</div>
+                  <div class="metric-value" id="sim-heading">90.0°</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Path Length</div>
+                  <div class="metric-value" id="sim-path-len">0 steps</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Nodes Expanded</div>
+                  <div class="metric-value" id="sim-nodes-exp">0</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Planning Time</div>
+                  <div class="metric-value" id="sim-plan-time">0.0 ms</div>
+                </div>
+              </div>
+
+              <!-- Action Controls -->
+              <div style="background: var(--bg-card); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 12px;">
+                <h4 style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 10px;">Simulation Actions</h4>
+                <div class="sim-btn-row">
+                  <button class="btn-primary" id="btn-sim-nav-person" style="padding: 8px 14px; font-size: 0.8rem;">
+                    🏃 Move Toward Person (Vision Closed-Loop)
+                  </button>
+                  <button class="btn-robot" id="btn-sim-step" style="padding: 8px 14px; font-size: 0.8rem;">
+                    ▶️ Single Step
+                  </button>
+                  <button class="btn-robot" id="btn-sim-autorun" style="padding: 8px 14px; font-size: 0.8rem;">
+                    ⚡ Auto-Step
+                  </button>
+                  <button class="btn-danger" id="btn-sim-stop" style="padding: 8px 14px; font-size: 0.8rem;">
+                    🛑 Safety Emergency Stop
+                  </button>
+                  <button class="btn-robot" id="btn-sim-reset" style="padding: 8px 14px; font-size: 0.8rem;">
+                    🔄 Reset Home
+                  </button>
+                </div>
+              </div>
+
+              <!-- Closed Loop Verification Panel -->
+              <div style="background: #090d16; padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;">Closed-Loop Feedback Status</div>
+                <div id="sim-status-feedback" style="font-size: 0.85rem; color: #34d399; font-weight: 600;">
+                  Ready. Robot standing by at home position.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: Academic Benchmarks -->
+        <div class="tab-content" id="tab-benchmarks">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div>
+              <h3 style="color: var(--accent-cyan); font-size: 1.05rem; margin-bottom: 4px;">📊 Academic Evaluation & Benchmark Suite</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">
+                Quantitative experiments for Computer Vision (FPS, latency, ByteTrack) and Intelligent Robotics (8-connected A*, obstacle avoidance, replanning).
+              </p>
+            </div>
+            <button class="btn-primary" id="btn-run-benchmarks" style="padding: 10px 18px; font-size: 0.85rem;">
+              🚀 Run Academic Benchmarks
+            </button>
+          </div>
+
+          <!-- Benchmark Summary Cards -->
+          <div class="metrics-grid">
+            <div class="metric-card highlight">
+              <div class="metric-label">Collision Avoidance</div>
+              <div class="metric-value" id="bench-collision-rate">100.0%</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Avg Planning Latency</div>
+              <div class="metric-value" id="bench-avg-time">-- ms</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Avg Nodes Expanded</div>
+              <div class="metric-value" id="bench-avg-nodes">--</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">YOLO Throughput</div>
+              <div class="metric-value" id="bench-yolo-fps">-- FPS</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">YOLO Latency</div>
+              <div class="metric-value" id="bench-yolo-lat">-- ms</div>
+            </div>
+          </div>
+
+          <!-- Detailed Experiment Table -->
+          <div style="margin-top: 16px;">
+            <h4 style="color: var(--text-main); font-size: 0.9rem; margin-bottom: 8px;">Experimental Test Scenarios (A* Path Planning)</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Scenario Name</th>
+                  <th>Start Cell</th>
+                  <th>Goal Cell</th>
+                  <th>Outcome</th>
+                  <th>Nodes Expanded</th>
+                  <th>Planning Time (ms)</th>
+                  <th>Path Cost</th>
+                  <th>Path Efficiency</th>
+                </tr>
+              </thead>
+              <tbody id="bench-scenarios-table-body">
+                <tr><td colspan="8" class="text-muted" style="text-align: center;">Click "Run Academic Benchmarks" to evaluate.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB 2: User Profiles (Section 16) -->
+        <div class="tab-content" id="tab-users">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+              Every user has a strictly isolated local profile and separate memory.
+            </p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Consent Status</th>
+                <th>Last Seen</th>
+                <th>Memory Count</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TAB 3: Memory Vault (Section 6, 7, 16) -->
+        <div class="tab-content" id="tab-memory">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <label style="font-size: 0.85rem; font-weight: 600;">Select User:</label>
+              <select id="memory-user-select" style="background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem;">
+                <option value="">-- Select a User Profile --</option>
+              </select>
+            </div>
+            <button class="btn-danger" id="btn-clear-memories">Clear All Memories</button>
+          </div>
+
+          <!-- Level C: Facts -->
+          <div style="margin-bottom: 24px;">
+            <h4 style="color: var(--accent-cyan); font-size: 0.9rem; text-transform: uppercase; margin-bottom: 8px;">
+              Level C: Stable Profile Facts (Name, Interests, Preferences)
+            </h4>
+            <div id="memory-facts-container">
+              <p class="text-muted">Select a user above to view their facts.</p>
+            </div>
+          </div>
+
+          <!-- Level B: Episodic Memories -->
+          <div>
+            <h4 style="color: var(--accent-cyan); font-size: 0.9rem; text-transform: uppercase; margin-bottom: 8px;">
+              Level B: Episodic Memories (Past Interactions & Requests)
+            </h4>
+            <div id="memory-episodic-container">
+              <p class="text-muted">Select a user above to view episodic memories.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: System Diagnostics (Section 16, 21) -->
+        <div class="tab-content" id="tab-system">
+          <h4 style="color: var(--accent-cyan); margin-bottom: 12px;">Local Engine Diagnostics</h4>
+          <table>
+            <tbody>
+              <tr>
+                <td><strong>Vision Engine</strong></td>
+                <td>OpenCV YuNet Face Detector + SFace 128D Embeddings (Local ONNX)</td>
+              </tr>
+              <tr>
+                <td><strong>Speech-to-Text</strong></td>
+                <td>Faster-Whisper ({{ status.stt_provider }})</td>
+              </tr>
+              <tr>
+                <td><strong>Text-to-Speech</strong></td>
+                <td>Piper Neural TTS ({{ status.tts_provider }})</td>
+              </tr>
+              <tr>
+                <td><strong>Local LLM Provider</strong></td>
+                <td>Ollama (Model: {{ status.llm_model }})</td>
+              </tr>
+              <tr>
+                <td><strong>Database Engine</strong></td>
+                <td>SQLite3 WAL Mode with Strict Foreign Key Cascades</td>
+              </tr>
+              <tr>
+                <td><strong>Privacy & Network</strong></td>
+                <td>100% Offline • Zero Telemetry • Zero Cloud APIs</td>
+              </tr>
+              <tr>
+                <td><strong>Robotics Backend</strong></td>
+                <td>Simulated Hardware Controller (Active)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal for Face Registration -->
+  <div class="modal-overlay" id="face-reg-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: var(--text-main);">📸 Register Your Face in Fixi</h3>
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+
+      <div style="margin-bottom: 14px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Your Name:</label>
+        <input type="text" id="reg-name-input" placeholder="e.g. Arun, Maya, Thilak" style="width: 100%; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; font-size: 0.95rem;">
+      </div>
+
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" data-modaltab="modaltab-live">1. Live Camera Stream</button>
+        <button class="modal-tab-btn" data-modaltab="modaltab-webcam">2. Browser Webcam Snap</button>
+        <button class="modal-tab-btn" data-modaltab="modaltab-upload">3. Upload Photo</button>
+      </div>
+
+      <!-- Tab 1: Live Camera -->
+      <div class="modal-tab-content active" id="modaltab-live">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">
+          Center your face in the live robot/phone camera feed on the left, then click Scan Face:
+        </p>
+        <button class="btn-primary" id="btn-scan-live-cam" style="width: 100%; padding: 12px;">
+          🔍 Scan Face from Live Camera
+        </button>
+      </div>
+
+      <!-- Tab 2: Browser Webcam Snap -->
+      <div class="modal-tab-content" id="modaltab-webcam" style="display: none;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+          Take a photo directly with your device or laptop camera:
+        </p>
+        <div class="webcam-container">
+          <video id="modal-webcam-video" autoplay playsinline muted></video>
+          <canvas id="modal-webcam-canvas" style="display: none;"></canvas>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-robot" id="btn-start-browser-cam" style="flex: 1; padding: 10px;">Start Camera</button>
+          <button class="btn-primary" id="btn-snap-browser-cam" style="flex: 1; padding: 10px;" disabled>📸 Take Photo & Enroll</button>
+        </div>
+      </div>
+
+      <!-- Tab 3: Upload Photo -->
+      <div class="modal-tab-content" id="modaltab-upload" style="display: none;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+          Upload a clear photo containing your face (JPEG / PNG):
+        </p>
+        <input type="file" id="modal-photo-file" accept="image/*" style="width: 100%; margin-bottom: 14px; background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); color: var(--text-main);">
+        <button class="btn-primary" id="btn-upload-photo" style="width: 100%; padding: 12px;">
+          📁 Upload & Register Profile
+        </button>
+      </div>
+
+      <div id="modal-feedback" style="margin-top: 14px; font-size: 0.85rem; text-align: center; min-height: 20px;"></div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
