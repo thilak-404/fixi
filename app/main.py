@@ -4,6 +4,7 @@ Main Intelligence Engine coordinating Vision, Speech, Memory, LLM, and Robotics.
 Runs 100% locally with zero cloud dependencies.
 """
 
+import os
 import queue
 import time
 import threading
@@ -187,11 +188,14 @@ class FixiEngine:
                 if now - getattr(self, "_last_cam_check_time", 0.0) > 4.0:
                     self._last_cam_check_time = now
                     try:
-                        probe_cam = AdbMotorolaCamera() if AdbMotorolaCamera.is_device_connected() else WebcamCamera()
-                        if probe_cam.start():
-                            print("Live physical camera detected! Upgrading from SyntheticCamera to live camera.")
-                            self.camera.stop()
-                            self.camera = probe_cam
+                        has_adb = AdbMotorolaCamera.is_device_connected()
+                        has_v4l2 = any(p.startswith("video") for p in os.listdir("/dev")) if os.path.exists("/dev") else False
+                        if has_adb or has_v4l2:
+                            probe_cam = AdbMotorolaCamera() if has_adb else WebcamCamera()
+                            if probe_cam.start():
+                                print("Live physical camera detected! Upgrading from SyntheticCamera to live camera.")
+                                self.camera.stop()
+                                self.camera = probe_cam
                     except Exception:
                         pass
 
